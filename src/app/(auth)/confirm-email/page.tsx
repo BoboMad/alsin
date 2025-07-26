@@ -1,75 +1,60 @@
-// app/confirm/page.tsx or pages/confirm.tsx depending on your routing system
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Spinner } from '@/components/ui/spinner';
+import { useConfirmEmail } from '@/lib/api/auth/post-confirm-email';
 
 export default function ConfirmEmailPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get('email');
-  const token = searchParams.get('token');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('');
+  const { mutate: confirmEmailRequest } = useConfirmEmail({
+    config: {
+      onSuccess: () => {
+        router.push('/login?confirmed=true');
+      },
+      onError: error => {
+        setError(error.response?.data?.message || 'Email confirmation failed.');
+        setLoading(false);
+      },
+    },
+  });
 
   useEffect(() => {
+    const email = searchParams.get('email');
+    const token = searchParams.get('token');
+
     if (!email || !token) {
-      setStatus('error');
-      setMessage('Missing email or token.');
+      setError('Invalid confirmation link.');
+      setLoading(false);
       return;
     }
 
-    const confirmEmail = async () => {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/confirm-email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, token }),
-        });
+    confirmEmailRequest({ email, token });
+  }, [searchParams, router, confirmEmailRequest]);
 
-        const data = await res.json();
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen gap-2">
+        <Spinner /> Confirming email...
+      </div>
+    );
+  }
 
-        if (!res.ok) throw new Error(data.message || 'Email confirmation failed.');
-        setStatus('success');
-        setMessage('Your email has been successfully confirmed!');
-      } catch (err: any) {
-        setStatus('error');
-        setMessage(err.message || 'Something went wrong.');
-      }
-    };
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen">
+        <h2 className="text-2xl font-bold text-red-500">Error</h2>
+        <p>{error}</p>
+        <button onClick={() => router.push('/login')} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded">
+          Go to Login
+        </button>
+      </div>
+    );
+  }
 
-    confirmEmail();
-  }, [email, token]);
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center text-center p-6">
-      {status === 'loading' && (
-        <div className="animate-spin text-primary">
-          <Loader2 size={48} />
-          <p className="mt-4">Confirming your email...</p>
-        </div>
-      )}
-      {status === 'success' && (
-        <div className="text-green-600">
-          <CheckCircle2 size={48} />
-          <p className="mt-4 text-lg font-semibold">{message}</p>
-          <Link href="/login">
-            <Button className="mt-4">Go to Login</Button>
-          </Link>
-        </div>
-      )}
-      {status === 'error' && (
-        <div className="text-red-600">
-          <XCircle size={48} />
-          <p className="mt-4 text-lg font-semibold">{message}</p>
-          <Link href="/">
-            <Button variant="outline" className="mt-4">Back to Home</Button>
-          </Link>
-        </div>
-      )}
-    </div>
-  );
+  return null; // Redirect handles the success case
 }

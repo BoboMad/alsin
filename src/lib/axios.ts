@@ -1,6 +1,6 @@
-import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
+import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_BASE_URL;
+const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export const axiosInstance = axios.create({
   baseURL: API_URL,
@@ -29,25 +29,21 @@ const processQueue = (error: any, tokenValid = false) => {
 
 async function refreshToken() {
   try {
-    const response = await axiosInstance.post("/refresh-token");
-    return response.status === 200;
+    const response = await axiosInstance.post('/refresh-token');
+    if (response.status === 200 && response.data.message === 'Token refreshed') return true;
   } catch (err) {
     return false;
   }
 }
 
-const DISABLED_INTERCEPTORS = ["/login", "/register", "/refresh-token"];
+const DISABLED_INTERCEPTORS = ['/login', '/register', '/refresh-token'];
 
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  response => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    if (
-      error.response?.status === 401 &&
-      !originalRequest._retry &&
-      !DISABLED_INTERCEPTORS.some(path => originalRequest.url?.includes(path))
-    ) {
+    if (error.response?.status === 401 && !originalRequest._retry && !DISABLED_INTERCEPTORS.some(path => originalRequest.url?.includes(path))) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -66,13 +62,13 @@ axiosInstance.interceptors.response.use(
           processQueue(null, true);
           return axiosInstance(originalRequest);
         } else {
-          processQueue(new Error("Refresh failed"), false);
-          window.location.href = "/login";
+          processQueue(new Error('Refresh failed'), false);
+          window.location.href = '/login';
           return Promise.reject(error);
         }
       } catch (refreshError) {
         processQueue(refreshError, false);
-        window.location.href = "/login";
+        window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

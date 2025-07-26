@@ -3,26 +3,38 @@ import { render } from '@react-email/render';
 import { ConfirmEmail } from '@/emails/ConfirmEmail';
 
 export async function GET(req: NextRequest) {
+  const apiKey = req.headers.get('x-api-key');
+  const validApiKey = process.env.RENDER_API_KEY;
+
+  if (!apiKey || apiKey !== validApiKey) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const { searchParams } = new URL(req.url);
 
   const name = searchParams.get('name');
-  const email = searchParams.get('email');
   const token = searchParams.get('token');
+  const email = searchParams.get('email');
 
-  if (!email || !token) {
-    return new Response(JSON.stringify({ error: 'Missing email or token' }), {
+  if (!token || !email) {
+    return new Response(JSON.stringify({ error: 'Missing token or email' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
+  const safeName = name && /^[a-zA-Z\s'-]+$/.test(name) ? name : '';
+
   const base = process.env.EMAIL_CONFIRM_BASE_URL;
-  const url = new URL('/confirm', base);
-  url.searchParams.set('email', email);
+  const url = new URL('/confirm-email', base);
   url.searchParams.set('token', token);
+  url.searchParams.set('email', email);
   const confirmationUrl = url.toString();
 
-  if (!name || !confirmationUrl) {
+  if (!safeName || !confirmationUrl) {
     return new Response(JSON.stringify({ error: 'Missing name or confirmationUrl' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
@@ -31,7 +43,7 @@ export async function GET(req: NextRequest) {
 
   const html = await render(
     ConfirmEmail({
-      name,
+      name: safeName,
       confirmationUrl,
     })
   );
